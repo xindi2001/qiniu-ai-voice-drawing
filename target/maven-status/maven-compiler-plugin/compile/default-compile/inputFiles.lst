@@ -1,0 +1,10 @@
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\config\CorsConfig.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\dto\VoiceParseResponse.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\service\DeepSeekService.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\service\VoiceCommandService.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\controller\VoiceCommandController.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\validator\CommandValidator.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\dto\VoiceParseRequest.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\VoiceDrawingApplication.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\config\DeepSeekConfig.java
+D:\Learn\qiniuyun\backend\src\main\java\com\qiniu\voicedrawing\dto\DrawAction.java

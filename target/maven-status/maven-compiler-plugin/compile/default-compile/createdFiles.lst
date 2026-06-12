@@ -1,0 +1,10 @@
+com\qiniu\voicedrawing\dto\VoiceParseResponse.class
+com\qiniu\voicedrawing\validator\CommandValidator.class
+com\qiniu\voicedrawing\dto\VoiceParseRequest.class
+com\qiniu\voicedrawing\config\CorsConfig.class
+com\qiniu\voicedrawing\controller\VoiceCommandController.class
+com\qiniu\voicedrawing\dto\DrawAction.class
+com\qiniu\voicedrawing\config\DeepSeekConfig.class
+com\qiniu\voicedrawing\service\VoiceCommandService.class
+com\qiniu\voicedrawing\VoiceDrawingApplication.class
+com\qiniu\voicedrawing\service\DeepSeekService.class

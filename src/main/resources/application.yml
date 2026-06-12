@@ -1,0 +1,15 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: qiniu-ai-voice-drawing
+
+deepseek:
+  api-key: ${DEEPSEEK_API_KEY:}
+  api-url: https://api.deepseek.com/chat/completions
+  model: deepseek-chat
+
+logging:
+  level:
+    com.qiniu.voicedrawing: INFO
