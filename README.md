@@ -86,7 +86,7 @@ commandExecutor 执行绘图 → Konva 画布渲染
 ### 前端模块
 
 - **components**：`DrawingBoard`、`KonvaCanvas`、`TextCommandInput`、`CommandLog`、`VoicePanel`
-- **composables**：`useVoiceApi`、`useSpeechRecognition`（占位）、`useSpeechSynthesis`
+- **composables**：`useVoiceApi`、`useSpeechRecognition`、`useSpeechSynthesis`
 - **engine**：`commandExecutor`、`shapeFactory`
 
 ## API 示例
@@ -97,7 +97,7 @@ commandExecutor 执行绘图 → Konva 画布渲染
 POST /api/v1/voice/parse
 Content-Type: application/json
 
-{ "text": "画一个红色的圆" }
+{ "text": "画一个红色的圆", "sceneContext": [] }
 ```
 
 **响应**
@@ -128,6 +128,15 @@ Content-Type: application/json
 | 画一条绿色的线 | draw line |
 | 撤销 / 重做 | undo / redo |
 | 清空画布 | clear |
+| 把上一个改成绿色 | modify（需 sceneContext） |
+| 删除最后一个 | delete（需 sceneContext） |
+
+### 语音输入（Day 2）
+
+1. 使用 Chrome 或 Edge 打开页面
+2. 允许麦克风权限
+3. 点击「开始录音」说话，或开启「连续识别模式」
+4. 识别完成后自动解析并绘图，同时 TTS 播报 `speak` 字段
 
 更多命令规划见 [DESIGN.md](./DESIGN.md)。
 
@@ -146,7 +155,7 @@ npm run build
 ## 开发路线（3 天）
 
 1. **Day 1**：文本指令 + Mock/LLM 解析 + 基础绘图 ✅（本脚手架）
-2. **Day 2**：接入 Web Speech API、完善 modify/delete、错误处理
+2. **Day 2**：Web Speech API、modify/delete、sceneContext、错误处理 ✅
 3. **Day 3**：联调、GitHub Pages 部署、演示录制
 
 ## License

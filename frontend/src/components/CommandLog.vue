@@ -13,8 +13,11 @@ defineProps<{
     <div v-for="entry in [...entries].reverse()" :key="entry.id" class="log-entry">
       <div class="meta">
         <span class="time">{{ entry.timestamp }}</span>
+        <span :class="['badge', 'source', entry.source]">
+          {{ entry.source === 'voice' ? '语音' : '文本' }}
+        </span>
         <span v-if="entry.response?.mockMode" class="badge mock">Mock</span>
-        <span v-else class="badge live">LLM</span>
+        <span v-else-if="entry.response" class="badge live">LLM</span>
       </div>
       <div class="text"><strong>输入：</strong>{{ entry.text }}</div>
       <div v-if="entry.error" class="error">{{ entry.error }}</div>
@@ -77,6 +80,16 @@ h3 {
   padding: 0.1rem 0.4rem;
   border-radius: 4px;
   font-weight: 600;
+}
+
+.badge.source.voice {
+  background: #ede9fe;
+  color: #6d28d9;
+}
+
+.badge.source.text {
+  background: #e0f2fe;
+  color: #0369a1;
 }
 
 .badge.mock {

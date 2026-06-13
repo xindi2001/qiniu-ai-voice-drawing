@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.qiniu.voicedrawing.config.DeepSeekConfig;
 import com.qiniu.voicedrawing.dto.DrawAction;
+import com.qiniu.voicedrawing.dto.SceneShapeContext;
 import com.qiniu.voicedrawing.dto.VoiceParseResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,7 +41,7 @@ public class DeepSeekService {
                   "width": 100, "height": 80,
                   "radius": 50,
                   "x1": 50, "y1": 50, "x2": 200, "y2": 200,
-                  "targetId": "可选，修改/删除目标"
+                  "targetId": "可选，修改/删除目标图形的 id"
                 }
               ]
             }
@@ -50,6 +51,12 @@ public class DeepSeekService {
             - 未指定位置时居中：x=300, y=200
             - undo/redo/clear 只需 action 字段
             - 支持组合指令，多个 action 按顺序执行
+            - 用户消息中会附带当前画布图形列表 sceneContext（含 id、shape、color、坐标等）
+            - 引用已有图形时，modify/delete 必须使用 sceneContext 中的 id 作为 targetId
+            - 「上一个」「最后一个」「那个圆」等指代：默认指列表中最后一项；按形状描述则找最后一个匹配 shape
+            - modify 可修改 color、x、y、width、height、radius 等字段，只传需要变更的字段
+            - 「变大一点」：circle 的 radius +20，rect 的 width/height 各 +20
+            - 「移到左边」：x 减少约 80；「移到右边」：x 增加约 80
             """;
 
     private static final Pattern CODE_BLOCK_PATTERN =
@@ -65,33 +72,35 @@ public class DeepSeekService {
         this.restTemplate = new RestTemplate();
     }
 
-    public VoiceParseResponse parseCommand(String text) {
+    public VoiceParseResponse parseCommand(String text, List<SceneShapeContext> sceneContext) {
         if (!deepSeekConfig.isConfigured()) {
             log.info("DeepSeek API key not configured, using mock mode");
-            return mockParse(text);
+            return mockParse(text, sceneContext);
         }
 
         try {
-            String content = callDeepSeekApi(text);
+            String content = callDeepSeekApi(text, sceneContext);
             String json = stripMarkdownCodeBlocks(content);
             return parseJsonResponse(json, false);
         } catch (Exception e) {
             log.warn("DeepSeek API call failed, falling back to mock: {}", e.getMessage());
-            return mockParse(text);
+            return mockParse(text, sceneContext);
         }
     }
 
-    private String callDeepSeekApi(String text) throws Exception {
+    private String callDeepSeekApi(String text, List<SceneShapeContext> sceneContext) throws Exception {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.setBearerAuth(deepSeekConfig.getApiKey());
+
+        String userContent = buildUserMessage(text, sceneContext);
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", deepSeekConfig.getModel());
         body.put("temperature", 0.2);
         body.put("messages", List.of(
                 Map.of("role", "system", "content", SYSTEM_PROMPT),
-                Map.of("role", "user", "content", text)
+                Map.of("role", "user", "content", userContent)
         ));
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(body, headers);
@@ -100,6 +109,14 @@ public class DeepSeekService {
 
         JsonNode root = objectMapper.readTree(response.getBody());
         return root.path("choices").path(0).path("message").path("content").asText();
+    }
+
+    private String buildUserMessage(String text, List<SceneShapeContext> sceneContext) throws Exception {
+        if (sceneContext == null || sceneContext.isEmpty()) {
+            return text;
+        }
+        String contextJson = objectMapper.writeValueAsString(sceneContext);
+        return "用户指令：" + text + "\n\n当前画布图形 sceneContext：\n" + contextJson;
     }
 
     String stripMarkdownCodeBlocks(String content) {
@@ -128,10 +145,12 @@ public class DeepSeekService {
         return new VoiceParseResponse(speak, actions, mockMode);
     }
 
-    VoiceParseResponse mockParse(String text) {
+    VoiceParseResponse mockParse(String text, List<SceneShapeContext> sceneContext) {
         String normalized = text == null ? "" : text.trim();
         List<DrawAction> actions = new ArrayList<>();
         String speak = "好的，已执行";
+
+        boolean hasScene = sceneContext != null && !sceneContext.isEmpty();
 
         if (normalized.contains("撤销") || normalized.equalsIgnoreCase("undo")) {
             actions.add(action("undo"));
@@ -142,6 +161,33 @@ public class DeepSeekService {
         } else if (normalized.contains("清空") || normalized.contains("清除")) {
             actions.add(action("clear"));
             speak = "画布已清空";
+        } else if (hasScene && (normalized.contains("删除") || normalized.contains("删掉"))) {
+            SceneShapeContext target = resolveTarget(normalized, sceneContext);
+            if (target != null) {
+                DrawAction delete = action("delete");
+                delete.setTargetId(target.getId());
+                actions.add(delete);
+                speak = "已删除" + shapeLabel(target.getShape());
+            } else {
+                speak = "未找到要删除的图形";
+                DrawAction miss = action("delete");
+                miss.setTargetId("__not_found__");
+                actions.add(miss);
+            }
+        } else if (hasScene && containsModifyIntent(normalized)) {
+            SceneShapeContext target = resolveTarget(normalized, sceneContext);
+            if (target != null) {
+                DrawAction modify = action("modify");
+                modify.setTargetId(target.getId());
+                applyMockModify(normalized, modify, target);
+                actions.add(modify);
+                speak = "已修改" + shapeLabel(target.getShape());
+            } else {
+                speak = "未找到要修改的图形";
+                DrawAction miss = action("modify");
+                miss.setTargetId("__not_found__");
+                actions.add(miss);
+            }
         } else if (normalized.contains("圆") || normalized.contains("circle")) {
             DrawAction circle = action("draw");
             circle.setShape("circle");
@@ -183,6 +229,84 @@ public class DeepSeekService {
         }
 
         return new VoiceParseResponse(speak, actions, true);
+    }
+
+    private boolean containsModifyIntent(String text) {
+        return text.contains("改") || text.contains("变成") || text.contains("变为")
+                || text.contains("变大") || text.contains("变小")
+                || text.contains("移到") || text.contains("移动");
+    }
+
+    private void applyMockModify(String text, DrawAction modify, SceneShapeContext target) {
+        String color = extractColorIfPresent(text);
+        if (color != null) {
+            modify.setColor(color);
+        }
+        if (text.contains("变大")) {
+            if ("circle".equals(target.getShape()) && target.getRadius() != null) {
+                modify.setRadius(target.getRadius() + 20);
+            } else if ("rect".equals(target.getShape())) {
+                if (target.getWidth() != null) modify.setWidth(target.getWidth() + 20);
+                if (target.getHeight() != null) modify.setHeight(target.getHeight() + 20);
+            }
+        } else if (text.contains("变小")) {
+            if ("circle".equals(target.getShape()) && target.getRadius() != null) {
+                modify.setRadius(Math.max(10, target.getRadius() - 20));
+            } else if ("rect".equals(target.getShape())) {
+                if (target.getWidth() != null) modify.setWidth(Math.max(20, target.getWidth() - 20));
+                if (target.getHeight() != null) modify.setHeight(Math.max(20, target.getHeight() - 20));
+            }
+        }
+        if (text.contains("左边") || text.contains("左移")) {
+            if (target.getX() != null) modify.setX(target.getX() - 80);
+        } else if (text.contains("右边") || text.contains("右移")) {
+            if (target.getX() != null) modify.setX(target.getX() + 80);
+        } else if (text.contains("上边") || text.contains("上移")) {
+            if (target.getY() != null) modify.setY(target.getY() - 80);
+        } else if (text.contains("下边") || text.contains("下移")) {
+            if (target.getY() != null) modify.setY(target.getY() + 80);
+        }
+    }
+
+    private SceneShapeContext resolveTarget(String text, List<SceneShapeContext> sceneContext) {
+        String shapeFilter = null;
+        if (text.contains("圆")) shapeFilter = "circle";
+        else if (text.contains("矩形") || text.contains("方块")) shapeFilter = "rect";
+        else if (text.contains("线")) shapeFilter = "line";
+
+        List<SceneShapeContext> candidates = new ArrayList<>();
+        for (SceneShapeContext shape : sceneContext) {
+            if (shapeFilter == null || shapeFilter.equals(shape.getShape())) {
+                candidates.add(shape);
+            }
+        }
+        if (candidates.isEmpty()) {
+            return null;
+        }
+
+        if (text.contains("第一个") || text.contains("第一")) {
+            return candidates.get(0);
+        }
+        return candidates.get(candidates.size() - 1);
+    }
+
+    private String extractColorIfPresent(String text) {
+        if (text.contains("红")) return "#ef4444";
+        if (text.contains("蓝")) return "#3b82f6";
+        if (text.contains("绿")) return "#22c55e";
+        if (text.contains("黄")) return "#eab308";
+        if (text.contains("黑")) return "#1f2937";
+        if (text.contains("白")) return "#f9fafb";
+        return null;
+    }
+
+    private String shapeLabel(String shape) {
+        return switch (shape) {
+            case "circle" -> "圆形";
+            case "rect" -> "矩形";
+            case "line" -> "线条";
+            default -> "图形";
+        };
     }
 
     private DrawAction action(String type) {

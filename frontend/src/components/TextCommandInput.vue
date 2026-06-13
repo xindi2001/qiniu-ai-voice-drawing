@@ -14,8 +14,8 @@ const text = ref('')
 const examples = [
   '画一个红色的圆',
   '画一个蓝色的矩形',
-  '画一条绿色的线',
-  '撤销',
+  '把上一个改成绿色',
+  '删除最后一个',
   '清空画布',
 ]
 
@@ -33,7 +33,7 @@ function useExample(example: string): void {
 
 <template>
   <section class="text-input">
-    <h3>文本指令（MVP 调试）</h3>
+    <h3>文本指令</h3>
     <form @submit.prevent="submit">
       <input
         v-model="text"

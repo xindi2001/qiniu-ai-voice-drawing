@@ -19,7 +19,8 @@ public class VoiceCommandService {
     }
 
     public VoiceParseResponse parse(VoiceParseRequest request) {
-        VoiceParseResponse response = deepSeekService.parseCommand(request.getText());
+        VoiceParseResponse response = deepSeekService.parseCommand(
+                request.getText(), request.getSceneContext());
 
         List<String> errors = commandValidator.validateActions(response.getActions());
         if (!errors.isEmpty()) {
