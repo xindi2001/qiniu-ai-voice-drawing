@@ -61,7 +61,7 @@ function handleVoiceCommand(text: string): void {
   <div class="drawing-board">
     <header class="header">
       <h1>七牛 AI 语音绘图</h1>
-      <p>语音 / 文本指令驱动 · 七牛 Bootcamp Day 2</p>
+      <p>语音 / 文本指令驱动 · 自然语言绘图</p>
     </header>
 
     <main class="layout">

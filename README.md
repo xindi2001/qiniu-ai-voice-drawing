@@ -1,6 +1,6 @@
 # 七牛 AI 语音绘图工具
 
-七牛 AI Bootcamp 参赛作品 — 通过中文语音/文本指令在画布上绘图的 MVP 脚手架。
+通过中文语音或文本指令，在 Web 画布上绘制与编辑图形的 AI 驱动绘图应用。
 
 - **前端**：Vue 3 + Vite + TypeScript + vue-konva
 - **后端**：Java 17 + Spring Boot 3.2 + DeepSeek API
@@ -119,6 +119,55 @@ Content-Type: application/json
 }
 ```
 
+## 版本里程碑
+
+### Day 1 — 基础框架与文本绘图 ✅
+
+| 能力 | 说明 |
+|------|------|
+| 前后端骨架 | Spring Boot 三层 + Vue3/Konva 单页应用 |
+| 指令解析 | `POST /api/v1/voice/parse`，DeepSeek API + Mock 关键词降级 |
+| 文本绘图 | 圆 / 矩形 / 线，撤销 / 重做 / 清空 |
+| 指令日志 | 展示「文本 → JSON → 执行结果」链路 |
+
+### Day 2 — 语音与智能改图 ✅
+
+| 能力 | 说明 |
+|------|------|
+| 语音识别 | Web Speech API（zh-CN），按住说话 + 连续识别 |
+| 画布上下文 | `sceneContext` 传给后端，支持指代改图 |
+| 修改 / 删除 | 「把上一个改成绿色」「删除最后一个」 |
+| 体验增强 | 加载态、错误提示、TTS 播报 `speak`、日志区分语音/文本来源 |
+
+Mock 模式已支持 modify / delete 及部分移动关键词（见 [DESIGN.md](./DESIGN.md) P1 说明）。
+
+### Day 3 — 待完成 ⏳
+
+- 端到端联调与功能验证
+- GitHub Pages 前端部署
+- 生产后端部署（可选）
+- 演示视频录制
+- README 终稿
+
+## 功能验证步骤
+
+按顺序执行以下指令，可覆盖 MVP 核心能力（约 2–3 分钟）：
+
+| 步骤 | 口令 | 阶段 | 预期效果 |
+|------|------|------|----------|
+| 1 | 画一个红色的圆 | Day 1 | 红圆 + TTS |
+| 2 | 画一个蓝色的矩形 | Day 1 | 叠加矩形 |
+| 3 | 画一条绿色的线 | Day 1 | 叠加线条 |
+| 4 | 撤销 | Day 1 | 撤销线条 |
+| 5 | 清空画布 | Day 1 | 画布清空 |
+| 6 | 画一个红色的圆 → 把上一个改成绿色 | Day 2 | 改色 + TTS |
+| 7 | 删除最后一个 | Day 2 | 删除图形 |
+| 8 | 麦克风语音输入 | Day 2 | 识别并自动绘图 |
+
+> 未配置 `DEEPSEEK_API_KEY` 时走 **Mock 模式**，以上步骤均可完成，便于本地快速验证。
+
+详细命令设计与实现状态见 [DESIGN.md](./DESIGN.md)。
+
 ## 支持的指令（MVP）
 
 | 指令示例 | 动作 |
@@ -131,7 +180,7 @@ Content-Type: application/json
 | 把上一个改成绿色 | modify（需 sceneContext） |
 | 删除最后一个 | delete（需 sceneContext） |
 
-### 语音输入（Day 2）
+### 语音输入
 
 1. 使用 Chrome 或 Edge 打开页面
 2. 允许麦克风权限
@@ -152,11 +201,11 @@ npm run build
 
 > 生产环境需单独部署后端并更新 `useVoiceApi.ts` 中的 API 地址。
 
-## 开发路线（3 天）
+## 开发路线
 
-1. **Day 1**：文本指令 + Mock/LLM 解析 + 基础绘图 ✅（本脚手架）
+1. **Day 1**：文本指令 + Mock/LLM 解析 + 基础绘图 ✅
 2. **Day 2**：Web Speech API、modify/delete、sceneContext、错误处理 ✅
-3. **Day 3**：联调、GitHub Pages 部署、演示录制
+3. **Day 3**：联调、GitHub Pages 部署、演示录制 ⏳
 
 ## License
 
