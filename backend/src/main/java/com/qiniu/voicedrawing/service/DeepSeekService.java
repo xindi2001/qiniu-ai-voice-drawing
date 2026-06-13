@@ -13,6 +13,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientResponseException;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
@@ -82,10 +83,27 @@ public class DeepSeekService {
             String content = callDeepSeekApi(text, sceneContext);
             String json = stripMarkdownCodeBlocks(content);
             return parseJsonResponse(json, false);
+        } catch (RestClientResponseException e) {
+            int status = e.getStatusCode().value();
+            if (status == 401 || status == 403) {
+                log.warn("Invalid DeepSeek API key (HTTP {}), falling back to mock mode", status);
+            } else {
+                log.warn("DeepSeek API returned HTTP {} ({}), falling back to mock mode",
+                        status, e.getStatusText());
+            }
+            return mockParse(text, sceneContext);
         } catch (Exception e) {
             log.warn("DeepSeek API call failed, falling back to mock: {}", e.getMessage());
-            return mockParse(text, sceneContext);
+            return mockWithWarning(text, sceneContext,
+                    "DeepSeek API 不可用，已降级为 Mock 模式: " + e.getMessage());
         }
+    }
+
+    private VoiceParseResponse mockWithWarning(String text, List<SceneShapeContext> sceneContext,
+                                               String warning) {
+        VoiceParseResponse response = mockParse(text, sceneContext);
+        response.setWarning(warning);
+        return response;
     }
 
     private String callDeepSeekApi(String text, List<SceneShapeContext> sceneContext) throws Exception {

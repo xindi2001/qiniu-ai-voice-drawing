@@ -14,10 +14,10 @@ public class CorsConfig {
     @Bean
     public CorsFilter corsFilter() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowCredentials(true);
+        config.setAllowCredentials(false);
         config.setAllowedOriginPatterns(List.of(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
+                "http://localhost:*",
+                "http://127.0.0.1:*",
                 "https://*.github.io"
         ));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));

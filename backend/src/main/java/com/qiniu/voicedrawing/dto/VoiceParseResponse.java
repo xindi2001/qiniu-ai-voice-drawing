@@ -7,6 +7,8 @@ public class VoiceParseResponse {
     private String speak;
     private List<DrawAction> actions;
     private boolean mockMode;
+    /** Non-null when DeepSeek failed and mock fallback was used. */
+    private String warning;
 
     public VoiceParseResponse() {
     }
@@ -39,5 +41,13 @@ public class VoiceParseResponse {
 
     public void setMockMode(boolean mockMode) {
         this.mockMode = mockMode;
+    }
+
+    public String getWarning() {
+        return warning;
+    }
+
+    public void setWarning(String warning) {
+        this.warning = warning;
     }
 }

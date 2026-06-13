@@ -43,6 +43,7 @@ export interface VoiceParseResponse {
   speak: string
   actions: DrawAction[]
   mockMode: boolean
+  warning?: string
 }
 
 export interface CanvasShape {

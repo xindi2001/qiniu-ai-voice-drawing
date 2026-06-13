@@ -43,6 +43,9 @@ async function handleCommand(text: string, source: CommandSource): Promise<void>
     if (response.speak) {
       speak(response.speak)
     }
+    if (response.warning) {
+      apiError.value = response.warning
+    }
   } catch (e) {
     entry.error = e instanceof Error ? e.message : '执行失败'
   }

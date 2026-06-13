@@ -1,7 +1,21 @@
 import { ref } from 'vue'
 import type { SceneShapeContext, VoiceParseRequest, VoiceParseResponse } from '../types/commands'
 
-const API_BASE = import.meta.env.DEV ? '' : 'https://your-backend-url.example.com'
+const API_BASE =
+  import.meta.env.VITE_API_BASE ?? (import.meta.env.DEV ? '' : '')
+
+export interface AsrStatusResponse {
+  aliyunConfigured: boolean
+  recommendedProvider: 'aliyun' | 'webspeech'
+  message: string
+}
+
+export interface VoiceTranscribeResponse {
+  text: string
+  rawText?: string
+  provider: string
+  homophoneFixed?: boolean
+}
 
 export function useVoiceApi() {
   const loading = ref(false)
@@ -28,11 +42,31 @@ export function useVoiceApi() {
 
       if (!response.ok) {
         const errBody = await response.json().catch(() => ({}))
-        throw new Error((errBody as { error?: string }).error ?? `请求失败 (${response.status})`)
+        const serverError = (errBody as { error?: string }).error
+        if (serverError) {
+          throw new Error(serverError)
+        }
+        if (response.status === 403) {
+          throw new Error(
+            '请求被拒绝 (403)：请确认后端已在 8080 端口启动，且通过 npm run dev 访问前端（5173）。不要直接打开 dist 或 GitHub Pages 而未配置 VITE_API_BASE。',
+          )
+        }
+        if (response.status === 502 || response.status === 503) {
+          throw new Error(
+            `后端不可用 (${response.status})：请先在 backend 目录运行 mvn spring-boot:run`,
+          )
+        }
+        throw new Error(`请求失败 (${response.status})`)
       }
 
       return (await response.json()) as VoiceParseResponse
     } catch (e) {
+      if (e instanceof TypeError && e.message.includes('fetch')) {
+        const message =
+          '无法连接后端：请确认 backend 已运行 (mvn spring-boot:run) 且前端使用 npm run dev 启动'
+        error.value = message
+        throw new Error(message)
+      }
       const message = e instanceof Error ? e.message : '未知错误'
       error.value = message
       throw e
@@ -41,5 +75,37 @@ export function useVoiceApi() {
     }
   }
 
-  return { loading, error, parseCommand }
+  async function fetchAsrStatus(): Promise<AsrStatusResponse> {
+    const response = await fetch(`${API_BASE}/api/v1/voice/asr/status`)
+    if (!response.ok) {
+      return {
+        aliyunConfigured: false,
+        recommendedProvider: 'webspeech',
+        message: '无法获取 ASR 状态，将使用浏览器语音识别',
+      }
+    }
+    return (await response.json()) as AsrStatusResponse
+  }
+
+  async function transcribeAudio(wavBlob: Blob): Promise<VoiceTranscribeResponse> {
+    const formData = new FormData()
+    formData.append('audio', wavBlob, 'recording.wav')
+    formData.append('format', 'wav')
+    formData.append('sampleRate', '16000')
+
+    const response = await fetch(`${API_BASE}/api/v1/voice/transcribe`, {
+      method: 'POST',
+      body: formData,
+    })
+
+    const body = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      const serverError = (body as { error?: string }).error
+      throw new Error(serverError ?? `语音识别失败 (${response.status})`)
+    }
+
+    return body as VoiceTranscribeResponse
+  }
+
+  return { loading, error, parseCommand, fetchAsrStatus, transcribeAudio }
 }

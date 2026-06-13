@@ -1,5 +1,8 @@
 package com.qiniu.voicedrawing.config;
 
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.context.annotation.Configuration;
 
@@ -7,9 +10,20 @@ import org.springframework.context.annotation.Configuration;
 @ConfigurationProperties(prefix = "deepseek")
 public class DeepSeekConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(DeepSeekConfig.class);
+
     private String apiKey = "";
     private String apiUrl = "https://api.deepseek.com/chat/completions";
     private String model = "deepseek-chat";
+
+    @PostConstruct
+    void logConfigurationStatus() {
+        if (isConfigured()) {
+            log.info("DeepSeek configured: yes (API key loaded from environment)");
+        } else {
+            log.info("DeepSeek configured: no — mock mode will be used (set DEEPSEEK_API_KEY to enable)");
+        }
+    }
 
     public String getApiKey() {
         return apiKey;
