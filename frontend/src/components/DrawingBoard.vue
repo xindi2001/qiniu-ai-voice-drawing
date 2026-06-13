@@ -7,30 +7,33 @@ import VoicePanel from './VoicePanel.vue'
 import { useVoiceApi } from '../composables/useVoiceApi'
 import { useSpeechSynthesis } from '../composables/useSpeechSynthesis'
 import { createInitialState, executeActions } from '../engine/commandExecutor'
-import type { LogEntry } from '../types/commands'
+import type { CommandSource, LogEntry } from '../types/commands'
+import { shapesToSceneContext } from '../types/commands'
 
 const CANVAS_WIDTH = 600
 const CANVAS_HEIGHT = 400
 
 const executorState = ref(createInitialState())
 const logs = ref<LogEntry[]>([])
-const { loading, parseCommand } = useVoiceApi()
+const { loading, error: apiError, parseCommand } = useVoiceApi()
 const { speak } = useSpeechSynthesis()
 
 function createLogId(): string {
   return `log-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 }
 
-async function handleCommand(text: string): Promise<void> {
+async function handleCommand(text: string, source: CommandSource): Promise<void> {
   const entry: LogEntry = {
     id: createLogId(),
     timestamp: new Date().toLocaleTimeString('zh-CN'),
     text,
+    source,
   }
   logs.value.push(entry)
 
   try {
-    const response = await parseCommand(text)
+    const sceneContext = shapesToSceneContext(executorState.value.shapes)
+    const response = await parseCommand(text, sceneContext)
     entry.response = response
 
     const { state, messages } = executeActions(executorState.value, response.actions)
@@ -44,13 +47,21 @@ async function handleCommand(text: string): Promise<void> {
     entry.error = e instanceof Error ? e.message : '执行失败'
   }
 }
+
+function handleTextCommand(text: string): void {
+  handleCommand(text, 'text')
+}
+
+function handleVoiceCommand(text: string): void {
+  handleCommand(text, 'voice')
+}
 </script>
 
 <template>
   <div class="drawing-board">
     <header class="header">
       <h1>七牛 AI 语音绘图</h1>
-      <p>文本优先调试 · 语音绘图 Bootcamp MVP</p>
+      <p>语音 / 文本指令驱动 · 自然语言绘图</p>
     </header>
 
     <main class="layout">
@@ -65,11 +76,12 @@ async function handleCommand(text: string): Promise<void> {
             :height="CANVAS_HEIGHT"
           />
         </div>
+        <p v-if="apiError" class="global-error">API 错误：{{ apiError }}</p>
       </section>
 
       <aside class="sidebar">
-        <TextCommandInput :loading="loading" @submit="handleCommand" />
-        <VoicePanel @voice-result="handleCommand" />
+        <TextCommandInput :loading="loading" @submit="handleTextCommand" />
+        <VoicePanel :loading="loading" @voice-result="handleVoiceCommand" />
         <CommandLog :entries="logs" />
       </aside>
     </main>
@@ -125,6 +137,16 @@ async function handleCommand(text: string): Promise<void> {
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
   overflow: hidden;
   border: 1px solid #e2e8f0;
+}
+
+.global-error {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #dc2626;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  padding: 0.4rem 0.75rem;
 }
 
 .sidebar {
