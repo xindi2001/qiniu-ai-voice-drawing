@@ -2,6 +2,7 @@ package com.qiniu.voicedrawing.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
+import java.util.List;
 import java.util.Map;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -20,6 +21,22 @@ public class DrawAction {
     private Integer x2;
     private Integer y2;
     private String targetId;
+    private List<List<Integer>> points;
+    private String templateId;
+    private String iconId;
+    private Double scale;
+    private Integer animateMs;
+    private Boolean closed;
+    /** geometry | picture — 几何笔画 vs 生图描摹 */
+    private String mode;
+    /** 通义万相生图 prompt（简笔画、白底黑线） */
+    private String imagePrompt;
+    /** SVG path d 字符串或折线点序列的矢量化路径 */
+    private List<String> paths;
+    /** draw_paths：多条折线笔画，每项含 points 与 color */
+    private List<PathItem> pathItems;
+    /** true = 空心/描边圆环，不填充；null/false = 实心（默认） */
+    private Boolean strokeOnly;
     private Map<String, Object> params;
 
     public String getAction() {
@@ -124,6 +141,94 @@ public class DrawAction {
 
     public void setTargetId(String targetId) {
         this.targetId = targetId;
+    }
+
+    public List<List<Integer>> getPoints() {
+        return points;
+    }
+
+    public void setPoints(List<List<Integer>> points) {
+        this.points = points;
+    }
+
+    public String getTemplateId() {
+        return templateId;
+    }
+
+    public void setTemplateId(String templateId) {
+        this.templateId = templateId;
+    }
+
+    public String getIconId() {
+        return iconId;
+    }
+
+    public void setIconId(String iconId) {
+        this.iconId = iconId;
+    }
+
+    public Double getScale() {
+        return scale;
+    }
+
+    public void setScale(Double scale) {
+        this.scale = scale;
+    }
+
+    public Integer getAnimateMs() {
+        return animateMs;
+    }
+
+    public void setAnimateMs(Integer animateMs) {
+        this.animateMs = animateMs;
+    }
+
+    public Boolean getClosed() {
+        return closed;
+    }
+
+    public void setClosed(Boolean closed) {
+        this.closed = closed;
+    }
+
+    public String getMode() {
+        return mode;
+    }
+
+    public void setMode(String mode) {
+        this.mode = mode;
+    }
+
+    public String getImagePrompt() {
+        return imagePrompt;
+    }
+
+    public void setImagePrompt(String imagePrompt) {
+        this.imagePrompt = imagePrompt;
+    }
+
+    public List<String> getPaths() {
+        return paths;
+    }
+
+    public void setPaths(List<String> paths) {
+        this.paths = paths;
+    }
+
+    public List<PathItem> getPathItems() {
+        return pathItems;
+    }
+
+    public void setPathItems(List<PathItem> pathItems) {
+        this.pathItems = pathItems;
+    }
+
+    public Boolean getStrokeOnly() {
+        return strokeOnly;
+    }
+
+    public void setStrokeOnly(Boolean strokeOnly) {
+        this.strokeOnly = strokeOnly;
     }
 
     public Map<String, Object> getParams() {

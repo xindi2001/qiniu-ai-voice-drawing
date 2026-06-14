@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { fixDrawTypo } from '../utils/speakUtils'
 
 export function useSpeechSynthesis() {
   const isSpeaking = ref(false)
@@ -10,7 +11,7 @@ export function useSpeechSynthesis() {
     if (!isSupported.value || !text) return
 
     window.speechSynthesis.cancel()
-    const utterance = new SpeechSynthesisUtterance(text)
+    const utterance = new SpeechSynthesisUtterance(fixDrawTypo(text))
     utterance.lang = 'zh-CN'
     utterance.onstart = () => {
       isSpeaking.value = true

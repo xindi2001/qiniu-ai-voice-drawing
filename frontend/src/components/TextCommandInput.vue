@@ -7,12 +7,14 @@ const emit = defineEmits<{
 
 defineProps<{
   loading?: boolean
+  painting?: boolean
 }>()
 
 const text = ref('')
 
 const examples = [
   '画一个红色的圆',
+  '画一匹马',
   '画一个蓝色的矩形',
   '把上一个改成绿色',
   '删除最后一个',
@@ -39,10 +41,10 @@ function useExample(example: string): void {
         v-model="text"
         type="text"
         placeholder="输入绘图指令，如：画一个红色的圆"
-        :disabled="loading"
+        :disabled="loading || painting"
       />
-      <button type="submit" :disabled="loading || !text.trim()">
-        {{ loading ? '解析中...' : '执行' }}
+      <button type="submit" :disabled="loading || painting || !text.trim()">
+        {{ painting ? '绘画中...' : loading ? '解析中...' : '执行' }}
       </button>
     </form>
     <div class="examples">
@@ -52,7 +54,7 @@ function useExample(example: string): void {
         :key="ex"
         type="button"
         class="example-btn"
-        :disabled="loading"
+        :disabled="loading || painting"
         @click="useExample(ex)"
       >
         {{ ex }}

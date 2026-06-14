@@ -4,11 +4,33 @@ server:
 spring:
   application:
     name: qiniu-ai-voice-drawing
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
 
 deepseek:
+  # Must be DEEPSEEK_API_KEY (not EK_API_KEY). Omit for mock mode.
   api-key: ${DEEPSEEK_API_KEY:}
   api-url: https://api.deepseek.com/chat/completions
   model: deepseek-chat
+
+aliyun:
+  access-key-id: ${ALIYUN_ACCESS_KEY_ID:}
+  access-key-secret: ${ALIYUN_ACCESS_KEY_SECRET:}
+  asr:
+    app-key: ${ALIYUN_ASR_APP_KEY:}
+    region: cn-shanghai
+
+dashscope:
+  # 通义万相（DashScope）API Key；部分账号与 ALIYUN AccessKey 相同，可单独设置
+  api-key: ${DASHSCOPE_API_KEY:}
+  base-url: https://dashscope.aliyuncs.com
+  # turbo 默认更快；sketch_then_color 仅 fineDetail+精细/高清 时用 plus
+  model: wanx2.1-t2i-turbo
+  image-size: 768*768
+  # wanx2.x 勿用 <sketch> style；留空即可
+  style: ""
 
 logging:
   level:

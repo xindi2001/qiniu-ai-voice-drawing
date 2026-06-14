@@ -4,6 +4,21 @@ import type { LogEntry } from '../types/commands'
 defineProps<{
   entries: LogEntry[]
 }>()
+
+const ACTION_LABELS: Record<string, string> = {
+  draw_stroke: '几何笔画',
+  draw_paths: '简笔多段',
+  generate_and_trace: '万相描摹',
+  draw: 'draw',
+  drawPath: 'drawPath',
+  useIcon: '图标',
+  useTemplate: '模板',
+  modify: '修改',
+  delete: '删除',
+  undo: '撤销',
+  redo: '重做',
+  clear: '清空',
+}
 </script>
 
 <template>
@@ -20,9 +35,18 @@ defineProps<{
         <span v-else-if="entry.response" class="badge live">LLM</span>
       </div>
       <div class="text"><strong>输入：</strong>{{ entry.text }}</div>
-      <div v-if="entry.error" class="error">{{ entry.error }}</div>
-      <template v-else-if="entry.response">
+      <div v-if="entry.error" class="error"><strong>执行错误：</strong>{{ entry.error }}</div>
+      <template v-if="entry.response">
         <div class="speak"><strong>回复：</strong>{{ entry.response.speak }}</div>
+        <div v-if="entry.response.actions?.length" class="actions">
+          <span
+            v-for="(action, ai) in entry.response.actions"
+            :key="ai"
+            class="badge action-type"
+          >
+            {{ ACTION_LABELS[action.action] ?? action.action }}
+          </span>
+        </div>
         <pre class="json">{{ JSON.stringify(entry.response.actions, null, 2) }}</pre>
         <ul v-if="entry.executed?.length" class="executed">
           <li v-for="(msg, i) in entry.executed" :key="i">{{ msg }}</li>
@@ -100,6 +124,18 @@ h3 {
 .badge.live {
   background: #dcfce7;
   color: #15803d;
+}
+
+.badge.action-type {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.3rem 0;
 }
 
 .text,

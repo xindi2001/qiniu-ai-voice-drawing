@@ -1,14 +1,19 @@
-import { onUnmounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
+import { useAudioRecorder } from './useAudioRecorder'
+import { convertBlobToWav16k } from '../utils/audioToWav'
+import { useVoiceApi } from './useVoiceApi'
 
 const ERROR_MESSAGES: Record<string, string> = {
   'not-allowed': '麦克风权限被拒绝，请在浏览器设置中允许访问',
   'no-speech': '未检测到语音，请重试',
   'audio-capture': '未找到麦克风设备',
-  'network': '语音识别需要网络连接（Chrome 使用云端识别）',
-  'aborted': '语音识别已取消',
+  network: '语音识别需要网络连接（Chrome 使用云端识别）',
+  aborted: '语音识别已取消',
   'language-not-supported': '当前浏览器不支持中文语音识别',
   'service-not-allowed': '语音识别服务不可用',
 }
+
+export type SpeechProviderName = 'aliyun' | 'webspeech'
 
 function getRecognitionCtor(): SpeechRecognitionConstructor | null {
   if (typeof window === 'undefined') return null
@@ -22,15 +27,22 @@ export interface SpeechRecognitionOptions {
 
 export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
   const isListening = ref(false)
+  const isTranscribing = ref(false)
   const transcript = ref('')
   const interimTranscript = ref('')
-  const isSupported = ref(getRecognitionCtor() !== null)
   const error = ref<string | null>(null)
   const continuous = ref(options.continuous ?? false)
+  const confirmBeforeExecute = ref(false)
+  const providerName = ref<SpeechProviderName>('webspeech')
+  const providerMessage = ref<string | null>(null)
+  const isSupported = ref(false)
+
+  const { fetchAsrStatus, transcribeAudio } = useVoiceApi()
+  const { startRecording, stopRecording } = useAudioRecorder()
 
   let recognition: SpeechRecognition | null = null
 
-  function createRecognition(): SpeechRecognition | null {
+  function createWebSpeechRecognition(): SpeechRecognition | null {
     const Ctor = getRecognitionCtor()
     if (!Ctor) return null
 
@@ -63,14 +75,15 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
       if (finalText) {
         transcript.value = (transcript.value + finalText).trim()
         interimTranscript.value = ''
-        options.onFinalTranscript?.(finalText.trim())
+        if (continuous.value && !confirmBeforeExecute.value) {
+          options.onFinalTranscript?.(finalText.trim())
+          transcript.value = ''
+        }
       }
     }
 
     instance.onerror = (event: SpeechRecognitionErrorEvent) => {
-      const message =
-        ERROR_MESSAGES[event.error] ?? `语音识别错误: ${event.error}`
-      error.value = message
+      error.value = ERROR_MESSAGES[event.error] ?? `语音识别错误: ${event.error}`
       isListening.value = false
     }
 
@@ -82,8 +95,46 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
     return instance
   }
 
-  function startListening(): void {
-    if (!isSupported.value) {
+  async function startAliyunListening(): Promise<void> {
+    error.value = null
+    transcript.value = ''
+    interimTranscript.value = ''
+
+    try {
+      await startRecording()
+      isListening.value = true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '启动录音失败'
+      isListening.value = false
+    }
+  }
+
+  async function stopAliyunListening(): Promise<void> {
+    if (!isListening.value) return
+
+    isListening.value = false
+    isTranscribing.value = true
+    error.value = null
+
+    try {
+      const blob = await stopRecording()
+      const wavBlob = await convertBlobToWav16k(blob)
+      const result = await transcribeAudio(wavBlob)
+      transcript.value = result.text.trim()
+
+      if (result.homophoneFixed && result.rawText && result.rawText !== result.text) {
+        providerMessage.value = `已纠正同音字：${result.rawText} → ${result.text}`
+      }
+
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : '阿里云语音识别失败'
+    } finally {
+      isTranscribing.value = false
+    }
+  }
+
+  function startWebSpeechListening(): void {
+    if (getRecognitionCtor() === null) {
       error.value = '当前浏览器不支持 Web Speech API，请使用 Chrome 或 Edge'
       return
     }
@@ -96,7 +147,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
 
     try {
       recognition?.abort()
-      recognition = createRecognition()
+      recognition = createWebSpeechRecognition()
       if (!recognition) {
         error.value = '无法初始化语音识别'
         return
@@ -108,7 +159,7 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
     }
   }
 
-  function stopListening(): void {
+  function stopWebSpeechListening(): void {
     if (!recognition || !isListening.value) return
     try {
       recognition.stop()
@@ -117,18 +168,80 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
     }
   }
 
+  function startListening(): void {
+    if (isListening.value || isTranscribing.value) return
+
+    if (providerName.value === 'aliyun') {
+      void startAliyunListening()
+    } else {
+      startWebSpeechListening()
+    }
+  }
+
+  async function stopListening(): Promise<void> {
+    if (providerName.value === 'aliyun') {
+      await stopAliyunListening()
+    } else {
+      stopWebSpeechListening()
+    }
+  }
+
   function toggleContinuous(): void {
+    if (providerName.value === 'aliyun') {
+      providerMessage.value = '阿里云 ASR 为按住说话模式，连续识别请使用 Web Speech'
+      return
+    }
     continuous.value = !continuous.value
     if (isListening.value) {
       stopListening()
     }
   }
 
+  function toggleConfirmBeforeExecute(): void {
+    confirmBeforeExecute.value = !confirmBeforeExecute.value
+  }
+
   function resetTranscript(): void {
     transcript.value = ''
     interimTranscript.value = ''
     error.value = null
+    providerMessage.value = null
   }
+
+  function confirmTranscript(): string | null {
+    const text = (transcript.value + interimTranscript.value).trim()
+    if (!text) return null
+    options.onFinalTranscript?.(text)
+    resetTranscript()
+    return text
+  }
+
+  function submitPendingTranscript(): string | null {
+    const text = (transcript.value + interimTranscript.value).trim()
+    if (!text) return null
+    options.onFinalTranscript?.(text)
+    resetTranscript()
+    return text
+  }
+
+  onMounted(async () => {
+    try {
+      const status = await fetchAsrStatus()
+      if (status.aliyunConfigured) {
+        providerName.value = 'aliyun'
+        isSupported.value = true
+        providerMessage.value = status.message
+      } else {
+        providerName.value = 'webspeech'
+        isSupported.value = getRecognitionCtor() !== null
+        providerMessage.value = status.message
+      }
+    } catch {
+      providerName.value = 'webspeech'
+      isSupported.value = getRecognitionCtor() !== null
+      providerMessage.value = '无法连接后端，使用浏览器 Web Speech API'
+    }
+  })
 
   onUnmounted(() => {
     recognition?.abort()
@@ -137,14 +250,21 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
 
   return {
     isListening,
+    isTranscribing,
     transcript,
     interimTranscript,
     isSupported,
     continuous,
+    confirmBeforeExecute,
+    providerName,
+    providerMessage,
     error,
     startListening,
     stopListening,
     toggleContinuous,
+    toggleConfirmBeforeExecute,
     resetTranscript,
+    confirmTranscript,
+    submitPendingTranscript,
   }
 }
