@@ -20,7 +20,7 @@ public class VoiceCommandService {
 
     public VoiceParseResponse parse(VoiceParseRequest request) {
         VoiceParseResponse response = deepSeekService.parseCommand(
-                request.getText(), request.getSceneContext());
+                request.getText(), request.getSceneContext(), request.getFineDetailMode());
 
         List<String> errors = commandValidator.validateActions(response.getActions());
         if (!errors.isEmpty()) {

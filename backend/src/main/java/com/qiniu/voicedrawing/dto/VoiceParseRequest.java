@@ -13,6 +13,9 @@ public class VoiceParseRequest {
 
     private List<SceneShapeContext> sceneContext;
 
+    /** 前端「精细描摹模式」：提升万相生图质量与描摹细节，适合头像/精细人像 */
+    private Boolean fineDetailMode;
+
     public String getText() {
         return text;
     }
@@ -27,5 +30,13 @@ public class VoiceParseRequest {
 
     public void setSceneContext(List<SceneShapeContext> sceneContext) {
         this.sceneContext = sceneContext;
+    }
+
+    public Boolean getFineDetailMode() {
+        return fineDetailMode;
+    }
+
+    public void setFineDetailMode(Boolean fineDetailMode) {
+        this.fineDetailMode = fineDetailMode;
     }
 }

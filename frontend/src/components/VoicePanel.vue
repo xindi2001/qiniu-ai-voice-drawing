@@ -1,13 +1,30 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useSpeechRecognition } from '../composables/useSpeechRecognition'
+import type { DrawPipelineMode } from '../engine/commandExecutor'
+
+const EXECUTE_LABEL = { confirm: '确认执行', start: '开始执行' } as const
+
+const DRAW_MODE_OPTIONS: { value: DrawPipelineMode; label: string; hint: string }[] = [
+  { value: 'outline_only', label: '仅勾线（默认）', hint: '万相参考图 → 轮廓描摹，逐笔动画，不上色' },
+  { value: 'stroke_reveal', label: '完整揭示', hint: '快速展示成图，图像逐条揭示' },
+  { value: 'region_trace', label: '色块边界', hint: '按色块边界描摹线稿' },
+  { value: 'bitmap_trace', label: '位图矢量（实验）', hint: '旧 ImageTracer 管线，可能断线' },
+]
+
+const props = defineProps<{
+  loading?: boolean
+  painting?: boolean
+  paintMessage?: string | null
+  fineDetailMode?: boolean
+  drawMode?: DrawPipelineMode
+  dashscopeConfigured?: boolean
+}>()
 
 const emit = defineEmits<{
   voiceResult: [text: string]
-}>()
-
-defineProps<{
-  loading?: boolean
+  'update:fineDetailMode': [value: boolean]
+  'update:drawMode': [value: DrawPipelineMode]
 }>()
 
 const {
@@ -25,7 +42,6 @@ const {
   stopListening,
   toggleContinuous,
   toggleConfirmBeforeExecute,
-  confirmTranscript,
   submitPendingTranscript,
 } = useSpeechRecognition({
   onFinalTranscript(text) {
@@ -39,22 +55,44 @@ const providerLabel = computed(() =>
   providerName.value === 'aliyun' ? '阿里云 ASR' : 'Web Speech API',
 )
 
-const busy = computed(() => isListening.value || isTranscribing.value)
+const busy = computed(() => isListening.value || isTranscribing.value || !!props.painting)
+
+const executeDisabled = computed(
+  () =>
+    !transcript.value.trim()
+    || isListening.value
+    || isTranscribing.value
+    || !!props.loading
+    || !!props.painting,
+)
+
+const executeLabel = computed(() =>
+  confirmBeforeExecute.value ? EXECUTE_LABEL.confirm : EXECUTE_LABEL.start,
+)
 
 function handleStart(): void {
   startListening()
 }
 
-function handleStop(): void {
-  stopListening()
-  if (!confirmBeforeExecute.value) {
-    submitPendingTranscript()
-  }
+async function handleStop(): Promise<void> {
+  await stopListening()
 }
 
-function handleConfirm(): void {
-  confirmTranscript()
+function handleExecute(): void {
+  submitPendingTranscript()
 }
+
+function toggleFineDetailMode(event: Event): void {
+  emit('update:fineDetailMode', (event.target as HTMLInputElement).checked)
+}
+
+function onDrawModeChange(event: Event): void {
+  emit('update:drawMode', (event.target as HTMLSelectElement).value as DrawPipelineMode)
+}
+
+const drawModeHint = computed(() =>
+  DRAW_MODE_OPTIONS.find((o) => o.value === props.drawMode)?.hint ?? '',
+)
 </script>
 
 <template>
@@ -71,6 +109,47 @@ function handleConfirm(): void {
       {{ isSupported ? `识别引擎：${providerLabel}` : '语音识别不可用' }}
       <span v-if="isListening" class="listening-badge">录音中...</span>
       <span v-else-if="isTranscribing" class="listening-badge transcribing">识别中...</span>
+    </div>
+    <div class="mode-toggle">
+      <label class="select-label">
+        万相描摹模式
+        <select
+          :value="props.drawMode ?? 'outline_only'"
+          :disabled="busy || loading"
+          @change="onDrawModeChange"
+        >
+          <option
+            v-for="opt in DRAW_MODE_OPTIONS"
+            :key="opt.value"
+            :value="opt.value"
+          >
+            {{ opt.label }}
+          </option>
+        </select>
+      </label>
+      <p v-if="drawModeHint" class="hint">{{ drawModeHint }}</p>
+    </div>
+    <div class="mode-toggle">
+      <label>
+        <input
+          type="checkbox"
+          :checked="props.fineDetailMode"
+          :disabled="busy || loading"
+          @change="toggleFineDetailMode"
+        />
+        精细描摹模式（较慢，plus 1024，适合头像/细节插画）
+      </label>
+      <p class="hint">
+        <template v-if="!props.fineDetailMode">
+          录演示建议保持关闭精细模式：turbo 768 + 快速勾线，全程约 10–18 秒。
+        </template>
+        <template v-else-if="props.dashscopeConfigured">
+          复杂主体默认走万相生图（已配置 DASHSCOPE）
+        </template>
+        <template v-else>
+          未配置 DASHSCOPE_API_KEY，复杂物体使用简笔多段折线
+        </template>
+      </p>
     </div>
     <div class="mode-toggle">
       <label>
@@ -101,7 +180,7 @@ function handleConfirm(): void {
         :disabled="!isSupported || busy || loading"
         @click="handleStart"
       >
-        {{ loading ? '解析中...' : '开始录音' }}
+        {{ props.painting ? '绘画中...' : loading ? '解析中...' : '开始录音' }}
       </button>
       <button
         type="button"
@@ -112,16 +191,18 @@ function handleConfirm(): void {
         停止并识别
       </button>
       <button
-        v-if="confirmBeforeExecute && (transcript || interimTranscript)"
         type="button"
         class="btn-confirm"
-        :disabled="loading"
-        @click="handleConfirm"
+        :disabled="executeDisabled"
+        @click="handleExecute"
       >
-        确认执行
+        {{ executeLabel }}
       </button>
     </div>
-    <p v-if="loading" class="loading">
+    <p v-if="props.painting" class="loading">
+      <span class="spinner" />{{ props.paintMessage || '正在绘画...' }}
+    </p>
+    <p v-else-if="loading" class="loading">
       <span class="spinner" />正在解析指令...
     </p>
     <p v-if="error" class="error">{{ error }}</p>
@@ -133,8 +214,11 @@ function handleConfirm(): void {
         <strong>实时识别：</strong>{{ interimTranscript }}
       </p>
     </div>
-    <p v-if="!continuous && !confirmBeforeExecute" class="hint">
-      按住说话模式：点击「开始录音」说话，完成后点击「停止并识别」
+    <p v-if="providerName === 'aliyun'" class="hint">
+      按住说话：「开始录音」→ 说话 → 「停止并识别」→ 确认识别结果后点「{{ executeLabel }}」
+    </p>
+    <p v-else-if="!continuous" class="hint">
+      点击「开始录音」说话，「停止并识别」后点「{{ executeLabel }}」提交指令
     </p>
   </section>
 </template>
@@ -221,6 +305,22 @@ h3 {
   font-size: 0.85rem;
   color: #475569;
   cursor: pointer;
+}
+
+.select-label {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
+
+.select-label select {
+  width: 100%;
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: white;
+  color: #334155;
 }
 
 .controls {

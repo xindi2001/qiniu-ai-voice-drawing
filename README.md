@@ -14,6 +14,10 @@
 - **LLM 指令解析**：DeepSeek 将中文描述转为 `draw / modify / delete / undo / redo / clear` 等动作；未配置 API Key 时自动降级为 Mock 关键词模式
 - **画布上下文感知**：将当前图形列表 `sceneContext` 传给后端，支持「把上一个改成绿色」「删除最后一个圆」等指代改图
 - **基础图形绘制**：圆、矩形、线段；配置 DeepSeek 后可理解位置与尺寸描述（如「画在左上角」「移到右边」）
+- **三种绘图模式**（经 `commandExecutor.executeActionsAnimated` 逐笔播放笔画动画）：
+  - **`draw_stroke`（geometry）**：圆、矩形、线、三角形等简单几何
+  - **`draw_paths`（geometry）**：未配置万相时的复杂主体（马、树、房子等）多段折线简笔
+  - **`generate_and_trace`（picture）**：配置 `DASHSCOPE_API_KEY` 后，马/房子/树/太阳/车/猫/狗/鸟等**默认**走通义万相 → 矢量化 → 逐笔描摹；勾选「精细描摹」可提升质量
 - **语音体验**：阿里云 ASR（优先）或浏览器 Web Speech API（降级）；TTS 播报 `speak` 字段；可选「确认后再执行」
 - **ASR 同音字纠错**：自动将「园」「元」等误识别修正为「圆」
 
@@ -54,6 +58,9 @@ $env:DEEPSEEK_API_KEY="your_key_here"
 # ALIYUN_ACCESS_KEY_SECRET=your_access_key_secret
 # ALIYUN_ASR_APP_KEY=your_nls_app_key
 
+# 可选：通义万相 DashScope（generate_and_trace 精细描摹需此 Key）
+# DASHSCOPE_API_KEY=your_dashscope_api_key_here
+
 # 启动
 mvn spring-boot:run
 ```
@@ -81,6 +88,7 @@ npm run dev
 | 变量 | 位置 | 说明 |
 |------|------|------|
 | `DEEPSEEK_API_KEY` | 后端 | DeepSeek API 密钥，未设置时启用 Mock 模式 |
+| `DASHSCOPE_API_KEY` | 后端 | 通义万相密钥；**配置后复杂物体默认 generate_and_trace**；未配置时降级 draw_paths |
 | `ALIYUN_ACCESS_KEY_ID` | 后端 | 阿里云 AccessKey ID，用于 NLS Token |
 | `ALIYUN_ACCESS_KEY_SECRET` | 后端 | 阿里云 AccessKey Secret |
 | `ALIYUN_ASR_APP_KEY` | 后端 | 智能语音交互项目 AppKey（见下方获取方式） |
@@ -115,7 +123,10 @@ VoiceCommandController → VoiceCommandService → DeepSeekService
     ↓  （DeepSeek 不可用 / 无 Key → Mock 关键词降级）
 返回 { speak, actions[], mockMode? }
     ↓
-commandExecutor 执行绘图 → Konva 画布渲染 + TTS 播报 speak
+commandExecutor.executeActionsAnimated
+    draw_stroke / draw_paths / generate_and_trace（万相→矢量化→逐笔）
+    ↓
+Konva 画布 + TTS + 进度（生图中…/矢量化…/描绘第 N/M 笔）
 ```
 
 | 层级 | 技术 |
@@ -135,7 +146,7 @@ commandExecutor 执行绘图 → Konva 画布渲染 + TTS 播报 speak
 
 - **components**：`DrawingBoard`、`KonvaCanvas`、`TextCommandInput`、`CommandLog`、`VoicePanel`
 - **composables**：`useVoiceApi`、`useSpeechRecognition`、`useAudioRecorder`、`useSpeechSynthesis`
-- **engine**：`commandExecutor`、`shapeFactory`
+- **engine**：`commandExecutor`（`executeActionsAnimated`）、`strokeAnimator`、`shapeFactory`、`imageVectorizer`
 
 ## 版本里程碑 / 功能概览
 
@@ -169,6 +180,8 @@ Mock 模式已支持 modify / delete 及部分移动关键词（见 [DESIGN.md](
 | 确认后再执行 | ✅ | VoicePanel 可选，识别完成后手动确认再提交 |
 | 位置 / 尺寸指令 | ✅ | DeepSeek 模式支持；Mock 部分支持移动关键词 |
 | 端到端联调 | ✅ | 文本 + 语音 + 改图链路已验证 |
+| 笔画动画 | ✅ | `executeActionsAnimated`：几何/简笔/万相描摹均可见逐笔动画 |
+| 三种绘图模式 | ✅ | `draw_stroke` / `draw_paths` / `generate_and_trace`（精细关键词或 fineDetailMode） |
 | GitHub Pages 部署 | ⏳ | `vite.config.ts` 已配置 base，待发布 |
 | 生产后端部署 | ⏳ | 可选（Railway / Render 等） |
 | 演示视频 | ⏳ | 待录制 |
@@ -190,6 +203,17 @@ Mock 模式已支持 modify / delete 及部分移动关键词（见 [DESIGN.md](
 | 8 | 画一个圆 → 把圆移到左边 | Day 2/3 | 图形左移（DeepSeek 或 Mock） |
 | 9 | 在左上角画一个黄色的小圆 | Day 3 | 指定位置与尺寸（需 DeepSeek） |
 | 10 | 麦克风语音：「画一个蓝色的圆」 | Day 2/3 | ASR 识别 → 解析 → 绘图 |
+| 11 | 画一匹马 | Day 3 | **有 DASHSCOPE**：`generate_and_trace` 万相描摹；无 Key：`draw_paths` 简笔 |
+| 12 | 画一个太阳 | Day 3 | 同上（复杂主体路由） |
+| 13 | 画一个精细的动漫头像 | Day 3 | `generate_and_trace` + 建议勾选精细描摹 |
+
+**纯语音演示（bootcamp）**：
+
+1. 配置 `DASHSCOPE_API_KEY` 并重启后端
+2. VoicePanel：「开始录音」→「画一匹马」→「停止并识别」→「确认执行」
+3. 观察进度：「生图中…」→「矢量化…」→「描绘第 N/M 笔…」；日志 badge 显示「万相描摹」
+
+**推荐口令**：`画一匹马`（需 DashScope）、`画一个红色的圆`、`画一个精细的动漫头像`（勾选精细描摹）
 
 **语音验证补充**
 
@@ -208,6 +232,10 @@ Mock 模式已支持 modify / delete 及部分移动关键词（见 [DESIGN.md](
 | 画一个红色的圆 | draw circle | Mock + LLM |
 | 画一个蓝色的矩形 | draw rect | Mock + LLM |
 | 画一条绿色的线 | draw line | Mock + LLM |
+| 画一个三角形 | draw_stroke | 折线闭合 + 笔画动画 |
+| 画一座房子 | draw_stroke / draw_paths | 轮廓折线或简笔组合 |
+| 画一匹马 / 画一个太阳 / 画一座房子 | generate_and_trace（有 DashScope）或 draw_paths（无） | 复杂主体默认万相 |
+| 画一个精细的动漫头像 | generate_and_trace | 建议勾选精细描摹 + DASHSCOPE |
 | 在左上角画一个小圆 | draw circle | 主要依赖 DeepSeek |
 | 撤销 / 重做 | undo / redo | Mock + LLM |
 | 清空画布 | clear | Mock + LLM |
@@ -217,8 +245,9 @@ Mock 模式已支持 modify / delete 及部分移动关键词（见 [DESIGN.md](
 
 ## 已知限制
 
-- **图形类型**：当前画布仅渲染圆（circle）、矩形（rect）、线段（line）三种基础图形；三角形、多边形等尚未实现
-- **复杂物体**：「画一个房子」「画一棵树」等描述，LLM 会尝试分解为多个基础图形近似组合，效果有限且不稳定
+- **万相路由**：配置 `DASHSCOPE_API_KEY` 后，马/树/房子等复杂口令默认 `generate_and_trace`；未配置时降级 `draw_paths` tier2 模板
+- **描摹质量**：Sobel 边缘提取有路径数量上限；极复杂生图可能丢失细节
+- **万相延迟**：生图通常 10–60 秒，UI 显示阶段进度
 - **图层与组合**：不支持 z-index 调整、图形编组或精确 CAD 级绘图
 - **Mock 模式**：关键词规则较简单，位置与复杂指代主要依赖 DeepSeek
 - **语音识别**：Web Speech API 依赖浏览器与网络；阿里云 ASR 需正确配置 AccessKey 与 AppKey
@@ -231,8 +260,7 @@ Mock 模式已支持 modify / delete 及部分移动关键词（见 [DESIGN.md](
 3. **待做**：
    - GitHub Pages 前端发布 + 后端公网部署
    - 演示视频录制
-   - 扩展图形类型（三角形、椭圆等）
-   - 改进复杂物体的分解绘制策略
+   - 扩展更多简笔模板与描摹质量优化
 
 ## Git 工作流
 

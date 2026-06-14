@@ -10,6 +10,19 @@ export interface AsrStatusResponse {
   message: string
 }
 
+export interface ImageGenerateResponse {
+  imageUrl?: string
+  imageBase64?: string
+  mimeType?: string
+  configured?: boolean
+  error?: string
+}
+
+export interface ImageGenStatusResponse {
+  dashscopeConfigured: boolean
+  message: string
+}
+
 export interface VoiceTranscribeResponse {
   text: string
   rawText?: string
@@ -24,6 +37,7 @@ export function useVoiceApi() {
   async function parseCommand(
     text: string,
     sceneContext?: SceneShapeContext[],
+    fineDetailMode?: boolean,
   ): Promise<VoiceParseResponse> {
     loading.value = true
     error.value = null
@@ -32,6 +46,9 @@ export function useVoiceApi() {
       const body: VoiceParseRequest = { text }
       if (sceneContext && sceneContext.length > 0) {
         body.sceneContext = sceneContext
+      }
+      if (fineDetailMode) {
+        body.fineDetailMode = true
       }
 
       const response = await fetch(`${API_BASE}/api/v1/voice/parse`, {
@@ -107,5 +124,40 @@ export function useVoiceApi() {
     return body as VoiceTranscribeResponse
   }
 
-  return { loading, error, parseCommand, fetchAsrStatus, transcribeAudio }
+  async function fetchImageGenStatus(): Promise<ImageGenStatusResponse> {
+    const response = await fetch(`${API_BASE}/api/v1/voice/image-gen/status`)
+    if (!response.ok) {
+      return {
+        dashscopeConfigured: false,
+        message: '无法获取万相状态，复杂物将使用简笔模板',
+      }
+    }
+    return (await response.json()) as ImageGenStatusResponse
+  }
+
+  async function generateImage(
+    prompt: string,
+    fineDetail = false,
+    drawMode?: string,
+  ): Promise<ImageGenerateResponse> {
+    const response = await fetch(`${API_BASE}/api/v1/voice/generate-image`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        fineDetail: fineDetail || undefined,
+        drawMode: drawMode || undefined,
+      }),
+    })
+
+    const body = (await response.json().catch(() => ({}))) as ImageGenerateResponse & {
+      error?: string
+    }
+    if (!response.ok) {
+      throw new Error(body.error ?? `生图请求失败 (${response.status})`)
+    }
+    return body
+  }
+
+  return { loading, error, parseCommand, fetchAsrStatus, fetchImageGenStatus, transcribeAudio, generateImage }
 }

@@ -49,3 +49,21 @@ export function actionToShape(action: DrawAction): CanvasShape | null {
       return null
   }
 }
+
+export function pathActionToShape(action: DrawAction): CanvasShape | null {
+  if (action.action !== 'drawPath' || !action.points || action.points.length < 2) {
+    return null
+  }
+
+  const flat = action.points.flat()
+
+  return {
+    id: createShapeId(),
+    type: 'path',
+    color: action.color ?? '#6366f1',
+    x: 0,
+    y: 0,
+    points: flat,
+    closed: action.closed ?? false,
+  }
+}

@@ -41,7 +41,6 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
   const { startRecording, stopRecording } = useAudioRecorder()
 
   let recognition: SpeechRecognition | null = null
-  let activeProvider: SpeechProviderName = 'webspeech'
 
   function createWebSpeechRecognition(): SpeechRecognition | null {
     const Ctor = getRecognitionCtor()
@@ -97,7 +96,6 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
   }
 
   async function startAliyunListening(): Promise<void> {
-    activeProvider = 'aliyun'
     error.value = null
     transcript.value = ''
     interimTranscript.value = ''
@@ -128,10 +126,6 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
         providerMessage.value = `已纠正同音字：${result.rawText} → ${result.text}`
       }
 
-      if (transcript.value && continuous.value && !confirmBeforeExecute.value) {
-        options.onFinalTranscript?.(transcript.value)
-        transcript.value = ''
-      }
     } catch (e) {
       error.value = e instanceof Error ? e.message : '阿里云语音识别失败'
     } finally {
@@ -140,7 +134,6 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
   }
 
   function startWebSpeechListening(): void {
-    activeProvider = 'webspeech'
     if (getRecognitionCtor() === null) {
       error.value = '当前浏览器不支持 Web Speech API，请使用 Chrome 或 Edge'
       return
@@ -185,9 +178,9 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
     }
   }
 
-  function stopListening(): void {
+  async function stopListening(): Promise<void> {
     if (providerName.value === 'aliyun') {
-      void stopAliyunListening()
+      await stopAliyunListening()
     } else {
       stopWebSpeechListening()
     }
@@ -224,20 +217,10 @@ export function useSpeechRecognition(options: SpeechRecognitionOptions = {}) {
   }
 
   function submitPendingTranscript(): string | null {
-    if (confirmBeforeExecute.value) {
-      return confirmTranscript()
-    }
-
     const text = (transcript.value + interimTranscript.value).trim()
     if (!text) return null
-
-    if (activeProvider === 'webspeech' && !continuous.value) {
-      options.onFinalTranscript?.(text)
-      resetTranscript()
-    } else if (activeProvider === 'aliyun' && text) {
-      options.onFinalTranscript?.(text)
-      resetTranscript()
-    }
+    options.onFinalTranscript?.(text)
+    resetTranscript()
     return text
   }
 
